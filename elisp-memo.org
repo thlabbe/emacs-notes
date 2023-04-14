@@ -1,0 +1,435 @@
+* Emacs LISP mémo
+
+Inspiré de http://wahlee.info/emacs/emacs/practical_emacs.html
+** Traitement de texte
+
+**** Curseur
+ #+begin_src elisp
+  (point)
+ #+end_src
+ *point* renvoie la position du curseur dans le buffer courant.
+
+***** Sauvegarder la position du curseur
+****** save-excursion
+ #+begin_src elisp
+   (save-excursion
+     ;; lisp code ...
+   )
+ #+end_src
+ 
+***** Déplacements du curseur
+****** goto-char
+ 
+(goto-char POSITION)
+Move cursor to a given position.
+ #+begin_src elisp
+   ;; move cursor to position 392
+   (goto-char 392)
+ #+end_src
+ 
+****** forward-char
+(forward-char &optional N)
+Avance le curseur de N caharctères.
+
+****** backward-char
+ (backward-char &optional N)
+ Recule le curseur de N caractères. 
+ #+begin_src elisp
+   ;; move cursor by 9 chars
+    (forward-char 9)
+ #+end_src
+ 
+****** beginning-of-line
+ (beginning-of-line &optional N)
+ Positionne le curseur au debut de la ligne. Si N est fourni avance de N-1 lignes.
+ 
+****** end-of-line
+ (end-of-line &optional N)
+ Positionne le curseur à la fin de la lignes.
+***** Recherche de texte et Déplacements du Curseur
+ Ces fonctions sont utilisée pour rechercher du texte mais elles déplace aussi le curseur.
+ - *search-forward*
+ - *re-search-forward*
+ - *search-backward*
+ - *re-search-backward*
+
+****** skip-chars-forward
+ (skip-chars-forward STRING &optional LIM)
+ Move cursor forward by skip a given set of characters. Returns the distance traveled. Also skip-chars-backward.
+ #+begin_src elisp
+   ;; move cursor to the first char that's not a newline or tab
+   (skip-chars-forward "\n\t")
+ #+end_src
+ 
+**** Thing at Point ( le truc sous le curseur )
+ #+begin_src elisp
+  (defun ff ()
+    "Affiche le mot sous le curseur"
+    (interactive)
+    (message "%s" (thing-at-point 'word)))
+ #+end_src
+
+**** La région du truc sous le curseur
+
+ #+begin_src elisp
+(defun my-get-boundary-and-thing ()
+  "exemple d'utilisation de `bounds-of-thing-at-point'"
+  (interactive)
+  (let (bounds pos1 pos2 mything)
+    (setq bounds (bounds-of-thing-at-point 'symbol))
+    (setq pos1 (car bounds))
+    (setq pos2 (cdr bounds))
+    (setq mything (buffer-substring-no-properties pos1 pos2))
+
+    (message
+     "thing begin at [%s], end at [%s], thing is [%s]"
+     pos1 pos2 mything)))
+ #+end_src
+
+**** Qu'est-ce que /thing/ ?
+ La signification exacte de "thing" depend de la table de syntaxe du buffer courrant. (cf. minor-mode & major-mode )
+
+**** Recherhcer
+***** Rechercher en avant et en arrière
+#+begin_src elisp
+
+;;; regex permettant de capturer les noms de variables d'une DATA DIVISION
+  (setq ma-regex "^......\s+[0-9][0-9]\s+\\([-A-Z0-9]+\\)")
+          
+  (defun rr()
+    "Rechercher dans le buffer toutes les ocurences de `ma-regex'.
+      Retourne la liste des POINTS ou `ma-regex' a matché et la liste des chaînes capturées "
+	  (interactive)
+	  (save-excursion
+	    (widen)
+	    (goto-char (point-max))
+	    (let ((founding nil)
+		  (foundings ()))
+	    (while
+		(ignore-errors  
+		  (re-search-backward ma-regex))
+	      (setq founding (cons (match-string-no-properties 1) (point)))
+	      (push founding foundings) 
+	      )
+	    (message "%S" foundings))))
+
+#+end_src 
+**** Insert & Delete
+***** Insertion de texte
+****** insert
+ #+begin_src elisp
+   (insert "un chaine de texte")
+ #+end_src
+***** Suppression de texte
+
+****** delete-char
+ #+begin_src elisp
+   (delete-char 9)
+   ;; supprime 9 caractères
+ #+end_src
+ Un parametre négatif suppriera vers la gauche.
+ 
+****** delete-region
+
+****** erase-buffer
+ Supprime tout le contenu du buffer. _Attention_ : l'effacement ignore *narrow-to-region* 
+
+****** delete-and-extract-region
+ Supprime entre 2 positions et renvoie le texte supprimé.
+ 
+**  Buffers & Fichiers
+*** Buffers
+**** Obtenir le nom du buffer 
+***** buffer-name
+ #+begin_src elisp
+  (buffer-name &optional <BUFFER>)
+  ;;; retourne le nom du buffer courrant
+ #+end_src
+
+***** buffer-file-name
+ #+begin_src elisp
+  (buffer-name &optional <BUFFER>)
+  ;;; retourne le chemin complet du fichier ou nil 
+ #+end_src
+
+**** Changer de buffer
+***** with-current-bufffer
+#+begin_src elisp
+  (with-current-buuffer <BUFFER-OR-NAME> &rest <BODY>)
+#+end_src
+Construit un buffer temporaire.
+
+Trucs & Asctuces : Très utile car cette fonction retourne dans le buffer original après l'évaluation du <BODY>.
+
+****** exemple :
+#+begin_src elisp
+  ;; faire de myBuf un buffer temporaire
+  (with-current-buffer myBuf
+    ;;; code de d'édition du texte ... 
+    )
+#+end_src
+
+***** set-buffer
+#+begin_src elisp
+  (set-buffer <BUFFER-OR-NAME>)
+  ;;; le buffer actif devient BUFFER-OR-NAME, Mais sans le rendre visible
+#+end_src
+
+Trucs & Asctuces : Il existe aussi switch-to-buffer, mais elle n'est pas conçue pour être utilisée dans du code Lisp.
+
+****** exemple :
+#+begin_src elisp
+  (save-current-buffer
+    ;;; passer sur le buffer myBuf
+    (set-buffer myBuff)
+    ;;; faire des trucs  
+    )
+#+end_src
+
+**** Cloner le Buffer ( indirect-buffer )
+***** Cloner et ouvrir dans une nouvelle frame
+#+BEGIN_SRC elisp
+  (defun clone-indirect-buffer-other-frame (newname display-flag &optional norecord)
+    "comme `clone-indirect-buffer' l'affiche dans une nouvelle fenêtre (Frame)."
+    (interactive
+     (progn
+       (if (get major-mode 'no-clone-indirect)
+	   (error "Cannot indirectly clone a buffer in %s mode" mode-name))
+       (list (if current-prefix-arg
+		 (read-buffer "Name of indirect buffer: " (current-buffer)))
+	     t)))
+    (let ((pop-up-frames t))
+      (clone-indirect-buffer newname display-flag norecord)))
+
+#+END_src
+
+**** Créer des Buffers
+***** with-temp-buffer 
+#+begin_src elisp
+  (with-temp-buffer &rest <BODY>)
+#+end_src
+Créé un buffer temporaire, evalue BODY, et retourne la dernière expression de BODY 
+
+Trucs & Asctuces : Cette fonction et a préférer pour créer de nouveaux buffers.  Parce qu'elle évite de coder la création d'un buffer, activer ce nouveau buffer, faire des trucs avec ce buffer, fermer le buffer, et revenir au buffer précédant.
+
+#+begin_src elisp
+    ;;; utiliser un buffer temporaire pour manipuler des strings
+  (setq myStr "gros texte")
+  (with-temp-buffer
+    (insert myStr)
+    ;;; faire des trucs avec myStr
+
+    ;;; renvoyer myStr
+    (buffer-string))
+#+end_src
+
+***** generate-new-buffer
+#+begin_src elisp
+  (generate-new-buffer <NAME>)
+#+end_src
+Crée et retourne un buffer avec un nom basé sur NAME.  Pour ne pas créer de doublon, le nom du buffer est construit par generate-new-buffer-name.
+
+Utilisation typique :
+#+begin_src elisp
+  ;; nom d'un nouveau buffer. S'il commence par un <Blanc> : undo sera désactivé
+  (setq newBuffName " xyz")
+
+  ;; créé un nouveau buffer, le sauvegarder dans un var pour pouvoir par la suite l'activer(switch) ou le supprmier(kill)
+  (setq newBuff (generate-new-buffer newBuffName))
+
+  ;; activer le buffer mais sans le rendre visible. ( les fonction d'édition ... travailleront sur ce buffer
+  (set-buffer newBuff)
+#+end_src
+
+
+***** get-buffer-create
+#+begin_src elisp
+  (get-buffer-create <BUFFER-OR-NAME>)
+#+end_src
+ - Retourne le buffer, mais ne le rend pas actif. Pour activer le buffer utilisez set-buffer 
+ - <BUFFER-OR-NAME> peut être soit un buffer soit une string
+ - Si <BUFFER-OR-NAME> est un buffer et qu'il existe déjà il est retourné. Sinon il est créé
+ - Si <BUFFER-OR-NAME> est une string qui commence par un espaces, undo est désactivé sur ce buffer  
+
+****** exemple 
+#+begin_src elisp
+;; create new buffer, without undo info. make sure the string passed is unique and has space in front
+(setq newBuf (get-buffer-create " xyz"))
+
+;; make it current (but does not make it visible), so all insert etc operations works on it.
+(set-buffer newBuf)
+#+end_src
+
+**** Supprimer les Buffers
+***** kill-buffer
+#+begin_src elisp
+  (kill-buffer &optional <BUFFER-OR-NAME>)
+  Ferme le buffer actif ou le buffer spécifié.
+  
+#+end_src
+Trucs & Asctuces : ....
+
+***** Template commande
+#+begin_src elisp
+#+end_src
+bla bla bla.
+
+Trucs & Asctuces : ....
+
+*** Fichiers
+**** Lire des fichiers en /Batch/
+
+Pour traiter plusieurs fichier en lecture seule, utilisez with-temp-buffer
+
+#+begin_src elisp
+  (defun my-process-file (fPath)
+    "Process the file at path FPATH"
+    (with-temp-buffer
+      (insert-file-contents fPath)
+      ;; do something
+      ))
+#+end_src
+**** Lire le contenu d'un fichier comme un String ou une Liste de lignes
+***** récupérer le contenu d'un fichier dans une String
+#+begin_src elisp
+  (defun get-string-from-file (filePath)
+  "Return file content as string."
+  (with-temp-buffer
+    (insert-file-contents filePath)
+    (buffer-string)))
+
+#+end_src
+
+***** récupérer le contenu d'un fichier dans une liste de lignes
+#+begin_src elisp
+  (defun read-lines (filePath)
+  "Return a list of lines of a file at filePath."
+  (with-temp-buffer
+    (insert-file-contents filePath)
+    (split-string (buffer-string) "\n" t)))
+#+end_src
+
+Pour traiter la liste obtennue, vous pouvez utiliser *mapcar* pour traiter chaque element de la liste. Si vous n'avez pas besoin de la liste résultat utilisez *mapc*.
+
+Nota Bene: En /elisp/ il est plus efficace de manipuler le texte dans un buffer que de faire de complexe manipulations de strings.  Mais, si les lignes sont toutes courtes et qu'il n'est pas necessaire de connaitre les précédantes et les suivantes alors la liste de lignes peut se révéler plus facile à implementer.
+
+**** Ecrire un fichier
+***** write-region
+#+begin_src elisp
+
+  (write-region <START> <END> <FILENAME> &optional <APPEND> <VISIT> <LOCKNAME> <MUSTBENEW>)
+
+	    ;; ecrit  la région ou une string dans un fichier. <START> <END> sont des positions dans le buffer.
+	    ;; Si <START> est nil Alors tout le buffer est ecrit.
+	    ;; Si <START> est une chaïne, c'est la chaine qui sera.
+	    ;; <FILENAME> est le fichier à ecrire
+
+      ;; écrire une region dans un fichier
+	(write-region (point-min) (point-max) "~/temp.el")
+
+       ;; écrire une chaine dans un fichier 
+	(write-region "something something" nil "filepath")
+
+#+end_src
+
+***** save-buffer
+Enregistre le buffer dans le fichier qui lui est associé.
+#+begin_src elisp
+  (save-buffer)
+#+end_src
+
+***** write-file
+#+begin_src elisp
+  (write-file FILENAME &optional CONFIRM)
+#+end_src
+
+Ecrit le contenu du buffer actif dans un fichier comme un  "Enregistrer Sous"/"Save As", puis ouvre le fichier.
+Write buffer content into a new file, like “save as”, and open that file.
+****** Notes
+Ceci n'est pas vraiement utile en emacs lisp. Cette methode a des effets de bord ( le fichier est ouvert, cela déclenche son mode majeur et le hooks.
+Note: This is not useful in emacs lisp script. It has side-effects such as opening the file, run its major mode and hooks. [see Emacs Lisp Text Processing: find-file vs with-temp-buffer]
+#+begin_src elisp
+(write-file "~/new.txt")
+#+end_src
+
+***** append-to-file
+#+begin_src elisp
+(append-to-file <START> <END> <FILENAME>)
+#+end_src
+Ajoute la region du buffer au fichier <FILENAME>
+
+Eexemple :
+#+begin_src elisp
+;; append whole buffer content to a file
+(append-to-file (point-min) (point-max) "~/test.txt" )
+#+end_src
+
+**** Créer un nouveau Fichier 
+If you want to create new file, use with-temp-file.
+Si vous voulez créer un nouveau fichier, faotes le avec *with-temp-file*
+***** with-temp-file
+
+#+begin_src elisp
+  (with-temp-file FILE BODY)
+
+  Create a new buffer, make it current, evaluate BODY, and write the buffer to FILE. Existing file at FILE is overwritten. The value returned is the value of the last form in BODY.
+  ,#+begin_src elisp
+  ;; create a file with text hello
+
+  (with-temp-file "test.txt"
+    (insert "hello"))
+#+end_src
+
+Voici une autre façon de créer un fichier avec plus de contrôle  :
+#+begin_src elisp
+  ;; name for new buffer. If start with space, undo is disabled
+  (setq newBufName " xyz")
+
+  ;; create a new buffer, save it to a var, so later you can switch to it or kill it
+  (setq newBuf (generate-new-buffer newBufName))
+
+  ;; make it current (but does not make it visible), so all insert etc operations works on it.
+  (set-buffer newBuf)
+
+  ;; like “Save As”. Save current buffer, close it, and open the new saved
+  (write-file "~/new.txt")
+
+  ;; close it
+  (kill-buffer newBuf)
+#+end_src
+
+**** Ouvrir, Lire, et peut-être Ecrire un Fichier
+Si vous voulez ecrire dans un fichier SEULEMENT s'il a été modifié, vous pouvez créer une variable flag et utiliser *write-region* pour cela :
+#+begin-src elisp
+(defun my-process-file (fPath)
+  "Process the file at path FPATH"
+  (let ((fileChanged-p nil))
+    (with-temp-buffer
+      (insert-file-contents fPath)
+
+      ;; process text
+      ;; set fileChanged-p to t or nil
+
+      (when fileChanged-p (write-region (point-min) (point-max) fPath)))))
+#+end_src
+
+
+
+      
+
+** XML
+depuis Emacs 24 / 25 emacs est distribué avec le support de `libxml'
+
+*** Extraire une s-expression d'un fichier xml :
+Avec `libxml-parse-xml-region'
+#+begin_src elisp
+  (defun xx ()
+  "Renvoyer le contenu d'un buffer xml sous la forme d'une S-EXP"
+  (interactive)
+  (let (xml)
+  (with-current-buffer "GRYFAA.xml"
+   (setq xml (libxml-parse-xml-region (point-min) (point-max)))
+  
+  (message "%s" xml))
+  ))
+#+end_src

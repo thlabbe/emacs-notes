@@ -1,0 +1,100 @@
+* tl-cobol.el
+
+Routines pour manipuler un programme Cobol
+
+** structures ( cl-defstruct )
+
+*** cbl-program
+ CBL-PROGRAM structure permettant de manipuler un programme
+cobol.
+. name
+. divisions
+. paragraphs
+
+*** cbl-named-region
+. name
+. region
+  donne le point de depart et de fin de la region
+
+*** cbl-paragraph
+. include cbl-named-region
+. infos
+. refs-to
+  liste des paragraphes appelés depuis ce cbl-paragraph
+. refs-from
+  liste des paragraphes appelant de cbl-paragraph ( c'est l'inverse )
+
+*** cbl-ref
+. type pour savoir si l'on a à faire à un ref-to ou un ref-from
+. name nom de la référence ( ref-from ou ref-to )
+
+*** dot-node
+Structure pour permettre de produire un Noeud dans le Langage DOT de GraphViz
+réunissant l'enssemble des attributs pour un rendu pertinant.
+ . attributes : options ( shape, color, fillcolor ... ) 
+ . name : identifiant valide pour DOT-Lang
+ . label : Texte affiché dans le graphe.
+ Attention dans le cas d'une shape in ( record , mrecord , plaintext [HTML-like]):
+ le label peut être complexe.
+ Il peut être modifié si la liste des EDGE du DOT-GRAPH est modifiée
+ un DOT-EDGE ou un DOT-NODE peut ne pas être affiché.
+ |------------------|
+ | paragraph-name   |
+ |------------------|
+ | commentaire      |
+ | Nb lignes : zzz  |
+ |------------------|
+ | ligne x <slot-x> |
+ |------------------|
+ | ligne y <slot-y> |
+ |------------------|
+ | ...              |
+ |------------------|
+ 
+*** TODO dot-edge
+Struncture pour produire un Arc ( Edge ) dans le langage DOT de GraphViz
+
+*** TODO dot-graph
+Structure pour produire un Graphe ( [Di]Graph ) dans le langage DOT de GraphViz
+. attributes : Différentes options ( directed/ undirected label, name, font, ... ) 
+. nodes : Liste de DOT-NODE
+. edges : Liste de DOT-EDGE
+
+A la construction du DOT-GRAPH on peut vouloir inplémenter certaines règles spécifiques au CBL-PROGRAM en cours:
+. regex de noms de paragraphs à ignorer ( ie : ceux terminant par "-FIN"
+
+** constantes ( defvar )
+*** *re-cbl-indent-in-area*
+*** *re-cbl-division*
+
+** fonctions
+*** cbl-narrox ( region )
+Permet de faire un narrow sur la région passée en parametre.
+Cela permet par exemple d'accélerer les recherches de chaine de caractère.
+
+*** cbl-current-division
+Retourne la cbl-division courrante
+
+*** cbl-list-all-divisions
+Retourne la liste de toutes les CBL-DIVISION du buffer en cours
+
+*** cbl-current-paragraph
+Retourne le CBL-PARAGRAPH courrant
+**** TODO CBL-PARAGRAPH DESCRITPION
+Inclure les lignes de commentaire juste au dessus de la déclaration.
+Ces lignes si elles sont présentes peuvent servir a donner des infos sur :
+. la fonctionnalitée du paragraphe.
+
+*** cbl-list-all-paragraphs
+Retourner la liste des CBL-PRARAGRAPH du buffer en cours.
+
+*** cbl-list-all-refs-to-paragraphs ( paragraphs )
+FIXME : côuteux 
+retourner une liste de CBL-PARAGRAPH avec leurs REFS-TO valorisés.
+
+*** cbl-list-all-refs-to-for-pgm ( pgm )
+retourne la liste de CBL-PARAGRAPH avec leurs REFS-TO valorisées pour un CBL-PROGRAM.
+
+*** cbl--list-all-refs-to-for-given-paragraph (paragraph names)
+Retourne la liste de CBL-REFERENCE ( TO ) pour un CBL-PARAGRAPH et un liste de noms de paragraphes.
+
